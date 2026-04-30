@@ -750,63 +750,150 @@ async function runAcc(acc) {
 // ─── Dashboard Renderer ───────────────────────────────────────────────────────
 function render(accounts) {
   const wibStr = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', hour12: false });
-  const stMap  = {
-    idle: c(DIM, 'IDLE'), run: c(GREEN, 'RUN'), swap: c(CYAN, 'SWAP'),
-    auth: c(YELLOW, 'AUTH'), fee: c(YELLOW, 'FEE-WAIT'),
-    error: c(RED, 'ERROR'), cooldown: c(YELLOW, 'COOLDOWN'), paused: c(RED, 'CC-LOW')
+
+  // Tampilan saja: helper ini hanya merapikan lebar teks ANSI di terminal.
+  const stripAnsi = s => String(s ?? '').replace(/\x1b\[[0-9;]*m/g, '');
+  const vLen = s => stripAnsi(s).length;
+  const fit = (s, width) => {
+    s = String(s ?? '');
+    if (vLen(s) <= width) return s + ' '.repeat(width - vLen(s));
+    return stripAnsi(s).slice(0, Math.max(0, width - 1)) + '…';
   };
-  const phaseMap = { sell: c(RED, 'SELL'), hold: c(CYAN, 'HOLD'), buy: c(GREEN, 'BUY'), done: '✅', '-': '-' };
+  const cleanLog = (line) => {
+    let s = String(line ?? '');
+    const words = [
+      [/\[SUMMARY\]/g, '[REKAP]'],
+      [/Scan:/g, 'Dipindai:'],
+      [/Valid:/g, 'Lolos:'],
+      [/Trade:/g, 'Swap:'],
+      [/Skip:/g, 'Lewat:'],
+      [/Fee:/g, 'Biaya:'],
+      [/Est:/g, 'Estimasi:'],
+      [/❌ SKIP/g, '⛔ DILEWATI'],
+      [/EXECUTE/g, 'EKSEKUSI'],
+      [/\[SAFE\]/g, '[AMAN]'],
+      [/\[NORMAL\]/g, '[STABIL]'],
+      [/\[AGGRESSIVE\]/g, '[CEPAT]'],
+      [/fee /g, 'biaya '],
+      [/ > limit /g, ' > batas '],
+      [/Holding/g, 'Menahan posisi'],
+      [/cost=/g, 'modal='],
+      [/EXIT/g, 'KELUAR'],
+      [/Cycle done/g, 'Siklus selesai'],
+      [/net=/g, 'hasil='],
+      [/total=/g, 'akumulasi='],
+      [/Next cycle:/g, 'Siklus berikutnya:'],
+      [/\| daily /g, '| harian '],
+      [/Bot started/g, 'Sistem aktif'],
+      [/limit=/g, 'batas='],
+      [/Error:/g, 'Kendala:'],
+      [/CC low for sell/g, 'CC tidak cukup untuk jual'],
+      [/Trade attempt/g, 'Percobaan swap'],
+      [/Retry/g, 'Coba ulang'],
+      [/failed/g, 'gagal'],
+      [/retrying/g, 'mengulang'],
+      [/Graceful shutdown/g, 'Berhenti aman']
+    ];
+    for (const [a, b] of words) s = s.replace(a, b);
+    return s;
+  };
+
+  const stMap  = {
+    idle:     c(DIM, 'SIAGA'),
+    run:      c(GREEN, 'AKTIF'),
+    swap:     c(CYAN, 'SWAP'),
+    auth:     c(YELLOW, 'LOGIN'),
+    fee:      c(YELLOW, 'TUNDA BIAYA'),
+    error:    c(RED, 'KENDALA'),
+    cooldown: c(YELLOW, 'BATAS HARIAN'),
+    paused:   c(RED, 'CC RENDAH')
+  };
+  const phaseMap = {
+    sell: c(RED, 'JUAL'),
+    hold: c(CYAN, 'PANTAU'),
+    buy:  c(GREEN, 'BELI BALIK'),
+    done: c(GREEN, 'SELESAI'),
+    '-':  '-'
+  };
 
   const tTotal = accounts.reduce((a, x) => a + x.totalTrades,    0);
   const tOk    = accounts.reduce((a, x) => a + x.okTrades,       0);
   const tFail  = accounts.reduce((a, x) => a + x.failTrades,     0);
   const tNet   = accounts.reduce((a, x) => a + x.totalNetGainCC, 0);
   const tNetStr = (tNet >= 0 ? '+' : '') + tNet.toFixed(4);
+  const netColor = tNet >= 0 ? GREEN : RED;
 
-  const W = 78;
-  const hl = '─'.repeat(W);
-  const dl = '═'.repeat(W);
+  // Lebar dashboard dibuat lebih besar dan adaptif terhadap ukuran terminal.
+  const W = Math.max(118, Math.min((process.stdout.columns || 132) - 2, 150));
+  const wide = '═'.repeat(W);
+  const thin = '─'.repeat(W);
+
+  const row = (content = '') => '║' + fit('  ' + content, W) + '║';
+  const sep = () => '╠' + thin + '╣';
 
   const lines = [];
-  lines.push('╔' + dl + '╗');
-  lines.push('║  ' + c(BOLD + CYAN, `CANTONVERSE BOT v1.4  `) + c(DIM, `│  ${wibStr} WIB  │  ${accounts.length} account(s)`) + ' '.repeat(Math.max(0, W - 45 - wibStr.length)) + '║');
-  lines.push('╠' + dl + '╣');
-  lines.push('║  ' + `Total: ${tTotal} trades  OK: ${tOk}  Fail: ${tFail}  Net: ${tNet >= 0 ? c(GREEN, tNetStr) : c(RED, tNetStr)} CC  │  CC Guard: ${MIN_CC_GUARD}  Limit: ${DAILY_LIMIT_UTC}/day`.padEnd(W) + '║');
-  lines.push('╠' + hl + '╣');
-  lines.push('║  ' + c(BOLD, 'Account'.padEnd(12)) + c(BOLD, 'Status'.padEnd(12)) + c(BOLD, 'CC'.padEnd(10)) + c(BOLD, 'Daily'.padEnd(10)) + c(BOLD, 'Mode'.padEnd(11)) + c(BOLD, 'Phase'.padEnd(7)) + c(BOLD, 'Net CC'.padEnd(9)) + '║');
-  lines.push('║  ' + '─'.repeat(W - 2) + '║');
+  lines.push('╔' + wide + '╗');
+  lines.push(row(c(BOLD + CYAN, '◆ NEXORA CANTEX ◆') + c(DIM, `  │  ${wibStr} WIB  │  ${accounts.length} akun aktif`)));
+  lines.push(row(c(DIM, 'Auto Swap Monitor • CC ⇄ USDCx/CBTC • TP/SL/Timeout Watcher')));
+  lines.push('╠' + wide + '╣');
+
+  const stat1 = `${c(BOLD, 'Siklus')}: ${tTotal}   ${c(GREEN, 'Sukses')}: ${tOk}   ${c(RED, 'Gagal')}: ${tFail}`;
+  const stat2 = `${c(BOLD, 'Laba/Rugi')}: ${c(netColor, tNetStr + ' CC')}   ${c(BOLD, 'Pelindung CC')}: ≥ ${MIN_CC_GUARD}   ${c(BOLD, 'Jatah')}: ${DAILY_LIMIT_UTC}/hari UTC`;
+  lines.push(row(stat1 + '   │   ' + stat2));
+  lines.push(sep());
+
+  lines.push(row(c(BOLD, 'RINGKASAN AKUN')));
+  lines.push(row(
+    fit(c(BOLD, 'Akun'), 14) + '  ' +
+    fit(c(BOLD, 'Kondisi'), 14) + '  ' +
+    fit(c(BOLD, 'CC'), 10) + '  ' +
+    fit(c(BOLD, 'CBTC'), 10) + '  ' +
+    fit(c(BOLD, 'USDCx'), 10) + '  ' +
+    fit(c(BOLD, 'Harian'), 9) + '  ' +
+    fit(c(BOLD, 'Mode'), 9) + '  ' +
+    fit(c(BOLD, 'Tahap'), 11) + '  ' +
+    fit(c(BOLD, 'Net CC'), 12)
+  ));
+  lines.push(row('─'.repeat(Math.min(W - 4, 116))));
 
   for (const a of accounts) {
     const mode    = getMode(a.dailyTrades);
-    const modeStr = mode === 'SAFE' ? c(GREEN, 'SAFE') : mode === 'NORMAL' ? c(YELLOW, 'NORMAL') : c(RED, 'AGGR');
+    const modeStr = mode === 'SAFE' ? c(GREEN, 'AMAN') : mode === 'NORMAL' ? c(YELLOW, 'STABIL') : c(RED, 'CEPAT');
     const netStr  = (a.totalNetGainCC >= 0 ? c(GREEN, '+' + a.totalNetGainCC.toFixed(3)) : c(RED, a.totalNetGainCC.toFixed(3)));
     const stStr   = stMap[a.status] || a.status;
     const phStr   = phaseMap[a.phase] || a.phase;
-    const cdStr   = a.status === 'cooldown' ? fmtCountdown(secsUntilUtcMidnight() * 1000) : '';
-    lines.push('║  ' +
-      a.name.padEnd(12) +
-      (stStr + (cdStr ? ' ' + cdStr : '')).padEnd(22) +
-      a.cc.toFixed(2).padEnd(10) +
-      (a.dailyTrades + '/' + DAILY_LIMIT_UTC).padEnd(10) +
-      (modeStr + ' ').padEnd(17) +
-      phStr.padEnd(7) +
-      netStr.padEnd(18) + '║');
+    const cdStr   = a.status === 'cooldown' ? ' ' + fmtCountdown(secsUntilUtcMidnight() * 1000) : '';
+
+    lines.push(row(
+      fit(a.name, 14) + '  ' +
+      fit(stStr + cdStr, 14) + '  ' +
+      fit(a.cc.toFixed(2), 10) + '  ' +
+      fit((a.cbtc || 0).toFixed(6), 10) + '  ' +
+      fit((a.usdcx || 0).toFixed(4), 10) + '  ' +
+      fit(a.dailyTrades + '/' + DAILY_LIMIT_UTC, 9) + '  ' +
+      fit(modeStr, 9) + '  ' +
+      fit(phStr, 11) + '  ' +
+      fit(netStr, 12)
+    ));
+
+    if (a.positionToken) {
+      const pct = ((a.positionPct || 0) * 100).toFixed(3) + '%';
+      const pctColor = (a.positionPct || 0) >= 0 ? GREEN : RED;
+      lines.push(row(c(DIM, `   ↳ Posisi berjalan: ${a.positionToken} | Modal ${a.positionRef.toFixed(4)} CC | P/L `) + c(pctColor, pct)));
+    }
   }
 
-  lines.push('╠' + hl + '╣');
-  lines.push('║  ' + c(BOLD, 'Recent Activity') + ' '.repeat(W - 17) + '║');
-
-  const maxLogLines = Math.min(recentLines.length, 10);
+  lines.push(sep());
+  lines.push(row(c(BOLD, 'AKTIVITAS TERBARU')));
+  const maxLogLines = Math.min(recentLines.length, 12);
   for (let i = recentLines.length - maxLogLines; i < recentLines.length; i++) {
-    const raw = recentLines[i].replace(/\x1b\[[0-9;]*m/g, '');
-    const pad = Math.max(0, W - 2 - raw.length);
-    lines.push('║  ' + recentLines[i] + ' '.repeat(pad) + '║');
+    lines.push(row(cleanLog(recentLines[i])));
   }
-  // Pad if fewer lines
-  for (let i = maxLogLines; i < 10; i++) lines.push('║  ' + ' '.repeat(W - 2) + '║');
+  for (let i = maxLogLines; i < 12; i++) lines.push(row(''));
 
-  lines.push('╚' + dl + '╝');
-  lines.push(c(DIM, '  TP=+0.3%  SL=-2%  MaxHold=8m  |  Ctrl+C to stop'));
+  lines.push('╠' + wide + '╣');
+  lines.push(row(c(DIM, 'Target Profit +0.3%  │  Stop Loss -2%  │  Maksimal Hold 8 menit  │  Tekan Ctrl+C untuk berhenti aman')));
+  lines.push('╚' + wide + '╝');
 
   process.stdout.write('\x1b[2J\x1b[H'); // clear screen
   process.stdout.write(lines.join('\n') + '\n');
