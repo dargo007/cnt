@@ -1,0 +1,13 @@
+{
+  "name": "cantonverse-bot",
+  "version": "1.0.0",
+  "description": "Cantonverse: Sell CC→Token→Monitor P/L→Buy back | TP/SL/Timeout | 88 trades/hari UTC",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ethers": "^6.16.0",
+    "undici": "^7.22.0"
+  }
+}

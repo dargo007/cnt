@@ -1,0 +1,22 @@
+{
+  "settings": {
+    "baseUrl": "https://api.cantex.io",
+    "proxy": null,
+    "_preferToken_note": "Token tujuan swap: 'cbtc', 'usdcx', atau 'auto' (bergantian otomatis per cycle).",
+    "preferToken": "usdcx",
+    "_feeLimits_note": "Swap hanya jalan jika semua batas fee lolos.",
+    "feeLimits": {
+      "maxNetworkFee": 0.1,
+      "maxSlippagePercent": 0.08,
+      "maxPoolFeePercent": 0.06
+    },
+    "_ccGuard_note": "Bot PAUSE jika saldo CC di bawah nilai ini. Bot lanjut otomatis jika CC diisi ulang. Default: 5.0",
+    "minCCGuard": 5,
+    "_logRotate_note": "Log bot.log akan dihapus dan dibuat ulang setiap N jam. Default: 24",
+    "logRotateHours": 24,
+    "_advanced_note": "Parameter di bawah sudah diatur optimal. Ubah hanya jika kamu tahu efeknya.",
+    "_sell_range": "CC yang dijual per cycle: random 11.0 – 11.5 (ditetapkan di index.js)",
+    "_daily_limit": "Max 88 trade/hari, reset UTC midnight (ditetapkan di index.js)",
+    "_tp_sl": "Take profit +0.3% | Stop loss -2% | Max hold 8 menit (ditetapkan di index.js)"
+  }
+}
