@@ -35,7 +35,7 @@ const LOG_MAX_HOURS               = Number(gs.logRotateHours) > 0 ? Number(gs.lo
 
 // ─── Adaptive Mode Thresholds ─────────────────────────────────────────────────
 const MODE = {
-  SAFE:       { feeLimit: 0.30 },  // progress < 0.3
+  SAFE:       { feeLimit: 0.22 },  // progress < 0.22
   NORMAL:     { feeLimit: 0.40 },  // progress 0.3–0.7
   AGGRESSIVE: { feeLimit: 0.50 }   // progress > 0.7
 };
@@ -124,7 +124,7 @@ function secsUntilUtcMidnight() {
 // ─── Adaptive Mode ────────────────────────────────────────────────────────────
 function getMode(dailyDone) {
   const progress = dailyDone / DAILY_LIMIT_UTC;
-  if (progress < 0.3)  return 'SAFE';
+  if (progress < 0.22)  return 'SAFE';
   if (progress < 0.7)  return 'NORMAL';
   return 'AGGRESSIVE';
 }
@@ -135,7 +135,7 @@ function getMode(dailyDone) {
 // perbandingan profit tidak valid. Filter USDCx dilakukan lewat fee limit saja.
 function shouldTrade({ fee, mode }) {
   // Tolak hanya kalau fee benar-benar di luar batas wajar
-  const feeLimit = mode === 'SAFE' ? 0.30 : mode === 'NORMAL' ? 0.40 : 0.50;
+  const feeLimit = mode === 'SAFE' ? 0.22 : mode === 'NORMAL' ? 0.40 : 0.50;
   if (fee > feeLimit) {
     return { ok: false, reason: `fee ${fee.toFixed(4)} > limit ${feeLimit} [${mode}]` };
   }
